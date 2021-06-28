@@ -175,7 +175,7 @@ namespace arraymap{
 				      bool operator!=(const ptr_s &p)
 				      { return next != p.next; };
 			      }ptr_t;
-			      static Allocator alloc;
+			      static inline Allocator alloc;
 		      private:
 			      static inline ptr_t empty_node[0x10];
 			      ptr_t root;
