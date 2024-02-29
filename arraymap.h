@@ -165,107 +165,35 @@ namespace arraymap{
 			      class reverse_iterator;
 			      class const_iterator;
 			      class const_reverse_iterator;
+
 		      private:
 			      static_assert(std::is_trivially_copyable<key_type>::value, "Arraymap requires key type to be trivially copyable! (std::is_trivially_copyable)");
-			      typedef union ptr_s{
+			      union ptr_s{
 				      mapped_type *val;
-				      ptr_s *next;
-				      bool operator==(const ptr_s &p)
+				      union ptr_s *next;
+				      bool operator==(const union ptr_s &p) const
 				      { return next == p.next; };
-				      bool operator!=(const ptr_s &p)
+				      bool operator!=(const union ptr_s &p) const
 				      { return next != p.next; };
-			      }ptr_t;
-			      static inline Allocator alloc;
-		      private:
-			      static inline ptr_t empty_node[0x10];
-			      ptr_t root;
-			      iterator end_it;
-			      const_iterator cend_it;
-			      reverse_iterator rend_it;
-			      const_reverse_iterator crend_it;
-			      size_type element_count;
+			      };
+			      static inline union ptr_s empty_node[0x10];
 			      static constexpr unsigned short MAX_DEPTH = sizeof(key_type) * 2;
-		      public:
-			      arraymap(void):
-				      end_it(&this->root),
-				      cend_it(&this->root),
-				      rend_it(&this->root),
-				      crend_it(&this->root),
-				      element_count(0)
-			      {
-				      for(int i = 0; i < 0x10; i++)
-					      empty_node[i].next = empty_node; //TODO figure out a way to get rid of this initialization in constructor and initialize empty_node only once
+			      static inline Allocator alloc;
 
-				      root.next = empty_node;
-			      }
-			      arraymap(std::initializer_list<value_type> ilist):
-				      arraymap()
-			      {
-				      insert(ilist);
-			      }
-			      arraymap(const arraymap &other):
-				      arraymap()
-			      {
-				      for(auto it = other.cbegin(); it != other.cend(); it++)
-				      {
-					      insert(*it);
-				      }
-			      }
-			      arraymap(arraymap &&other):
-				      end_it(other.end_it),
-				      cend_it(other.cend_it),
-				      rend_it(other.rend_it),
-				      crend_it(other.rend_it),
-				      element_count(other.element_count)
-			      {
-				      root = other.root;
-				      element_count = other.element_count;
-				      other.root = empty_node;
-				      other.element_count = 0;
-			      }
-			      arraymap &operator=(const arraymap& other)
-			      {
-				      clear();
-				      for(auto it = other.cbegin(); it != other.cend(); it++)
-				      {
-					      insert(*it);
-				      }
-				      return *this;
-			      }
-			      arraymap &operator=(const arraymap&& other) noexcept
-			      {
-				      clear();
-				      root = other.root;
-				      element_count = other.element_count;
-				      other.root = empty_node;
-				      other.element_count = 0;
-				      return *this;
-			      }
-			      arraymap &operator=(std::initializer_list<value_type> ilist) noexcept
-			      {
-				      clear();
-				      insert(ilist);
-				      return *this;
-			      }
-			      ~arraymap(void)
-			      {
-				      free_node_tree(&root, MAX_DEPTH);
-			      }
-		      private: 
 			      class iterator_base{
 				      protected:
-					      ptr_t *stack[MAX_DEPTH];
+					      union ptr_s *stack[MAX_DEPTH];
 					      short depth;
 					      unsigned char key_bytes[sizeof(key_type) + 1];
 					      mapped_type empty_element;
 					      reference currentValue;
 
-					      iterator_base(ptr_t *root):
+					      iterator_base(union ptr_s *root):
 						      currentValue(*(key_type*)iterator_base::key_bytes, empty_element) 
 					      {
 						      stack[MAX_DEPTH - 1] = root;
 					      }
-					      iterator_base(ptr_t *root,const key_type &key):
+					      iterator_base(union ptr_s *root,const key_type &key):
 						      iterator_base(root)
 					      {
 						      std::memcpy(key_bytes, &key, sizeof(key_type));
@@ -285,7 +213,7 @@ namespace arraymap{
 					      }
 					      void fill_ptr_stack()
 					      {
-						      ptr_t *current_Node = stack[MAX_DEPTH-1];
+						      union ptr_s *current_Node = stack[MAX_DEPTH-1];
 						      unsigned int tetradeNr =  MAX_DEPTH - 2;
 						      do{
 							      current_Node = ( current_Node->next + tetradeValue(key_bytes, tetradeNr+1));
@@ -417,20 +345,21 @@ namespace arraymap{
 						      return std::memcmp(key_bytes, p.key_bytes, sizeof(key_type)+1) != 0;
 					      }
 			      };
+
 			      class const_iterator_base{
 				      protected:
-					      const ptr_t *stack[MAX_DEPTH];
+					      const union ptr_s *stack[MAX_DEPTH];
 					      short depth;
 					      unsigned char key_bytes[sizeof(key_type) + 1];
 					      mapped_type empty_element;
 					      reference currentValue;
 
-					      const_iterator_base(const ptr_t *root):
+					      const_iterator_base(const union ptr_s *root):
 						      currentValue(*(key_type*)const_iterator_base::key_bytes, empty_element) 
 					      {
 						      stack[MAX_DEPTH - 1] = root;
 					      }
-					      const_iterator_base(const ptr_t *root, key_type &key):
+					      const_iterator_base(const union ptr_s *root, key_type &key):
 						      const_iterator_base(root)
 					      {
 						      std::memcpy(key_bytes, &key, sizeof(key_type));
@@ -450,7 +379,7 @@ namespace arraymap{
 					      }
 					      void fill_ptr_stack()
 					      {
-						      const ptr_t *current_Node = stack[MAX_DEPTH-1];
+						      const union ptr_s *current_Node = stack[MAX_DEPTH-1];
 						      unsigned int tetradeNr =  MAX_DEPTH - 2;
 						      do{
 							      current_Node = ( current_Node->next + tetradeValue(key_bytes, tetradeNr+1));
@@ -559,11 +488,12 @@ namespace arraymap{
 						      return std::memcmp(key_bytes, p.key_bytes, sizeof(key_type)+1) != 0;
 					      }
 			      };
+
 		      public:
 			      class iterator : public iterator_base{
 				      private:
 					      friend class arraymap;
-				      iterator(ptr_t *root, key_type key, bool findNext):
+				      iterator(union ptr_s *root, key_type key, bool findNext):
 					      iterator_base(root, key)
 				      {
 					      if(!iterator_base::target_valid())
@@ -579,7 +509,7 @@ namespace arraymap{
 						      }
 					      }
 				      }
-				      iterator(ptr_t *root):
+				      iterator(union ptr_s *root):
 					      iterator_base(root)
 				      {
 					      memset(iterator_base::key_bytes, 0, sizeof(key_type));
@@ -610,10 +540,11 @@ namespace arraymap{
 						      return *this;
 					      }
 			      };
+
 			      class reverse_iterator : public iterator_base{
 				      private:
 					      friend class arraymap;
-				      reverse_iterator(ptr_t *root, key_type key, bool findNext):
+				      reverse_iterator(union ptr_s *root, key_type key, bool findNext):
 					      iterator_base(root, key)
 				      {
 					      if(!iterator_base::target_valid()){
@@ -629,7 +560,7 @@ namespace arraymap{
 						      }
 					      }
 				      }
-				      reverse_iterator(ptr_t *root):
+				      reverse_iterator(union ptr_s *root):
 					      iterator_base(root)
 				      {
 					      memset(iterator_base::key_bytes, 0, sizeof(key_type));
@@ -660,10 +591,11 @@ namespace arraymap{
 						      return *this;
 					      }
 			      };
+
 			      class const_iterator : public const_iterator_base{
 				      private:
 					      friend class arraymap;
-				      const_iterator(const ptr_t *root, key_type key, bool findNext):
+				      const_iterator(const union ptr_s *root, key_type key, bool findNext):
 					      const_iterator_base(root, key)
 				      {
 					      if(!const_iterator_base::target_valid()){
@@ -678,7 +610,7 @@ namespace arraymap{
 						      }
 					      }
 				      }
-				      const_iterator(ptr_t *root):
+				      const_iterator(union ptr_s *root):
 					      const_iterator_base(root)
 				      {
 					      memset(const_iterator_base::key_bytes, 0, sizeof(key_type));
@@ -709,10 +641,11 @@ namespace arraymap{
 						      return *this;
 					      }
 			      };
+
 			      class const_reverse_iterator : public const_iterator_base{
 				      private:
 					      friend class arraymap;
-				      const_reverse_iterator(const ptr_t *root, key_type key, bool findNext):
+				      const_reverse_iterator(const union ptr_s *root, key_type key, bool findNext):
 					      const_iterator_base(root, key)
 				      {
 					      if(!const_iterator_base::target_valid()){
@@ -727,7 +660,7 @@ namespace arraymap{
 						      }
 					      }
 				      }
-				      const_reverse_iterator(ptr_t *root):
+				      const_reverse_iterator(union ptr_s *root):
 					      const_iterator_base(root)
 				      {
 					      memset(const_iterator_base::key_bytes, 0, sizeof(key_type));
@@ -758,9 +691,10 @@ namespace arraymap{
 						      return *this;
 					      }
 			      };
+
 			      mapped_type& operator[](const key_type& __k)
 			      {
-				      ptr_t result = element_fast_find(Ordering::apply( __k ));
+				      union ptr_s result = element_fast_find(Ordering::apply( __k ));
 
 				      if(result == *empty_node)
 				      {
@@ -772,7 +706,7 @@ namespace arraymap{
 			      }
 			      mapped_type& at(const key_type& __k) const
 			      {
-				      ptr_t result = element_fast_find(Ordering::apply( __k ));
+				      union ptr_s result = element_fast_find(Ordering::apply( __k ));
 
 				      if(result == *empty_node)
 					      throw std::out_of_range("arraymap::at");
@@ -878,7 +812,7 @@ namespace arraymap{
 			      std::pair<iterator,bool> insert(value_type &&value)
 			      {
 				      bool added = false;
-				      ptr_t result = element_fast_find(Ordering::apply(value.first));
+				      union ptr_s result = element_fast_find(Ordering::apply(value.first));
 
 				      if(result == *empty_node)
 				      {
@@ -891,7 +825,7 @@ namespace arraymap{
 			      std::pair<iterator,bool> insert(const value_type &value)
 			      {
 				      bool added = false;
-				      ptr_t result = element_fast_find(Ordering::apply(value.first));
+				      union ptr_s result = element_fast_find(Ordering::apply(value.first));
 
 				      if(result == *empty_node)
 				      {
@@ -920,7 +854,7 @@ namespace arraymap{
 			      std::pair<iterator,bool> try_emplace(key_type &&k, Args&&... args)
 			      {     
 				      bool added = false;
-				      ptr_t result = element_fast_find(Ordering::apply(k));
+				      union ptr_s result = element_fast_find(Ordering::apply(k));
 
 				      if(result == *empty_node)
 				      {
@@ -932,21 +866,28 @@ namespace arraymap{
 			      }
 			      bool contains(const key_type& __k)
 			      {
-				      ptr_t result = element_fast_find(Ordering::apply(__k));
+				      union ptr_s result = element_fast_find(Ordering::apply(__k));
 				      return result != *empty_node;
 			      }
+
 		      private:
-			      ptr_t node_add_empty_node(void)
+			      union ptr_s root;
+			      iterator end_it;
+			      const_iterator cend_it;
+			      reverse_iterator rend_it;
+			      const_reverse_iterator crend_it;
+			      size_type element_count;
+			      union ptr_s node_add_empty_node(void)
 			      {
-				      ptr_t ret;
-				      ret.next = new ptr_t[0x10];
+				      union ptr_s ret;
+				      ret.next = new union ptr_s[0x10];
 
 				      for(int i = 0; i < 0x10; i++)
 					      ret.next[i].next = empty_node;
 
 				      return ret;
 			      }
-			      static void free_node_tree(ptr_t *ptr, unsigned int depth)
+			      static void free_node_tree(union ptr_s *ptr, unsigned int depth)
 			      {
 				      if(*ptr == *empty_node) return;
 
@@ -962,26 +903,26 @@ namespace arraymap{
 
 				      delete[] ptr->next;
 			      }
-			      static bool is_node_empty(ptr_t node) 
+			      static bool is_node_empty(union ptr_s node) 
 			      {
 				      for(int i = 0; i < 0x10; i++)
 					      if(node.next[i] != *empty_node) return false;
 				      return true;
 			      }
-			      inline ptr_t element_fast_find(const key_type key) const
+			      inline union ptr_s element_fast_find(const key_type key) const
 			      {
 				      unsigned char *key_bytes = (unsigned char*)&key;
-				      const ptr_t *current_Node = &root;
+				      const union ptr_s *current_Node = &root;
 				      unsigned int tetradeNr =  MAX_DEPTH - 1;
 				      do{
 					      current_Node = ( current_Node->next + tetradeValue(key_bytes, tetradeNr));
 				      }while(tetradeNr-- > 0);
 				      return *current_Node;
 			      }
-			      ptr_t element_fast_add(const key_type key)
+			      union ptr_s element_fast_add(const key_type key)
 			      {
 				      unsigned char *key_bytes = (unsigned char*)&key;
-				      ptr_t *current_Node = &root;
+				      union ptr_s *current_Node = &root;
 				      unsigned int tetradeNr =  MAX_DEPTH - 1;
 				      do{
 					      if(*current_Node == *empty_node)
@@ -993,10 +934,10 @@ namespace arraymap{
 				      std::construct_at(current_Node->val);
 				      return *current_Node;
 			      }
-			      ptr_t element_fast_add(const key_type key, mapped_type value)
+			      union ptr_s element_fast_add(const key_type key, mapped_type value)
 			      {
 				      unsigned char *key_bytes = (unsigned char*)&key;
-				      ptr_t *current_Node = &root;
+				      union ptr_s *current_Node = &root;
 				      unsigned int tetradeNr =  MAX_DEPTH - 1;
 				      do{
 					      if(*current_Node == *empty_node)
@@ -1009,10 +950,10 @@ namespace arraymap{
 				      return *current_Node;
 			      }
 			      template< class... Args >
-			      ptr_t element_fast_add(const key_type key,Args&&... args)
+			      union ptr_s element_fast_add(const key_type key,Args&&... args)
 			      {
 				      unsigned char *key_bytes = (unsigned char*)&key;
-				      ptr_t *current_Node = &root;
+				      union ptr_s *current_Node = &root;
 				      unsigned int tetradeNr =  MAX_DEPTH - 1;
 				      do{
 					      if(*current_Node == *empty_node)
@@ -1028,6 +969,73 @@ namespace arraymap{
 			      {
 				      static const unsigned char bitShift[2] = { 0, 4 };
 				      return ( bytes[Nr >> 1] >> bitShift[Nr & 1] ) & 0xF;
+			      }
+
+		      public:
+			      arraymap(void):
+				      end_it(&this->root),
+				      cend_it(&this->root),
+				      rend_it(&this->root),
+				      crend_it(&this->root),
+				      element_count(0)
+			      {
+				      for(int i = 0; i < 0x10; i++)
+					      empty_node[i].next = empty_node; //TODO figure out a way to get rid of this initialization in constructor and initialize empty_node only once
+
+				      root.next = empty_node;
+			      }
+			      arraymap(std::initializer_list<value_type> ilist):
+				      arraymap()
+			      {
+				      insert(ilist);
+			      }
+			      arraymap(const arraymap &other):
+				      arraymap()
+			      {
+				      for(auto it = other.cbegin(); it != other.cend(); it++)
+				      {
+					      insert(*it);
+				      }
+			      }
+			      arraymap(arraymap &&other):
+				      end_it(other.end_it),
+				      cend_it(other.cend_it),
+				      rend_it(other.rend_it),
+				      crend_it(other.rend_it),
+				      element_count(other.element_count)
+			      {
+				      root = other.root;
+				      element_count = other.element_count;
+				      other.root = empty_node;
+				      other.element_count = 0;
+			      }
+			      arraymap &operator=(const arraymap& other)
+			      {
+				      clear();
+				      for(auto it = other.cbegin(); it != other.cend(); it++)
+				      {
+					      insert(*it);
+				      }
+				      return *this;
+			      }
+			      arraymap &operator=(const arraymap&& other) noexcept
+			      {
+				      clear();
+				      root = other.root;
+				      element_count = other.element_count;
+				      other.root = empty_node;
+				      other.element_count = 0;
+				      return *this;
+			      }
+			      arraymap &operator=(std::initializer_list<value_type> ilist) noexcept
+			      {
+				      clear();
+				      insert(ilist);
+				      return *this;
+			      }
+			      ~arraymap(void)
+			      {
+				      free_node_tree(&root, MAX_DEPTH);
 			      }
 	      };
 }
