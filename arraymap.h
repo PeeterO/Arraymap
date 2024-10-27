@@ -1018,7 +1018,7 @@ namespace arraymap{
                               }
                               return *this;
                           }
-                          arraymap &operator=(const arraymap&& other) noexcept
+                          arraymap &operator=(arraymap&& other) noexcept
                           {
                               clear();
                               root = other.root;
